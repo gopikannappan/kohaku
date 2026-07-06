@@ -275,10 +275,16 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         return notes;
     }
 
+    // @ts-expect-error upstream drift: plugins #228 (Tail Calls) retyped prepareShield
+    // to return a tagged PublicOperation, but this SDK (and its tests) still return
+    // raw TxData[]. Remove when upstream migrates the railgun plugin.
     async prepareShield(asset: AssetAmount): Promise<TxData[]> {
         return this.prepareShieldMulti([asset]);
     }
 
+    // @ts-expect-error upstream drift: plugins #228 (Tail Calls) retyped prepareShield
+    // to return a tagged PublicOperation, but this SDK (and its tests) still return
+    // raw TxData[]. Remove when upstream migrates the railgun plugin.
     async prepareShieldMulti(tokens: AssetAmount[]): Promise<TxData[]> {
         let builder = this.provider.shield();
 
