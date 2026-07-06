@@ -19,3 +19,9 @@ pub fn chain_config_mainnet() -> ChainConfig {
 pub fn chain_config_sepolia() -> ChainConfig {
     ChainConfig::sepolia()
 }
+
+/// Gets the ChainConfig for Arbitrum One.
+#[wasm_bindgen(js_name = "chainConfigArbitrum")]
+pub fn chain_config_arbitrum() -> ChainConfig {
+    ChainConfig::arbitrum()
+}

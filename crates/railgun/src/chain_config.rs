@@ -91,10 +91,28 @@ impl ChainConfig {
         }
     }
 
+    pub fn arbitrum() -> Self {
+        Self::new(
+            42161,
+            address!("0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9"),
+            25,
+            address!("0xB4F2d77bD12c6b548Ae398244d7FAD4ABCE4D89b"),
+            address!("0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"),
+            56109834,
+            223895116,
+            "https://rail-squid.squids.live/squid-railgun-arbitrum-v2/v/v1/graphql",
+            "https://ppoi.fdi.network/",
+            &["efc6ddb59c098a13fb2b618fdae94c1c3a807abc8fb1837c93620c9143ee9e88"],
+            None,
+            None,
+        )
+    }
+
     pub fn from_chain_id(chain_id: ChainId) -> Option<Self> {
         match chain_id {
             c if c == Self::mainnet().id => Some(Self::mainnet()),
             c if c == Self::sepolia().id => Some(Self::sepolia()),
+            c if c == Self::arbitrum().id => Some(Self::arbitrum()),
             _ => None,
         }
     }
