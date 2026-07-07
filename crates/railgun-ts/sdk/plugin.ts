@@ -422,6 +422,31 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         // Sync after broadcast to update state.
         await this.provider.sync();
     }
+
+    /**
+     * Self-broadcast path: build a proved unshield into a raw TxData that any
+     * submitter (e.g. the wallet's own gas account) can send. Use this on chains
+     * with no Railgun 4337 broadcaster/paymaster (e.g. Arbitrum). The submitter
+     * is public, so this does NOT provide relayer-level submitter privacy.
+     * Delivers the ERC-20 `token.asset` to `to`; wrap/unwrap is the caller's job.
+     */
+    async buildUnshield(token: AssetAmount, to: `0x${string}`): Promise<TxData> {
+        const op = await this.prepareUnshieldMulti([token], to);
+        const tx = await this.provider.build(op.builder);
+        await this.provider.sync();
+        return tx;
+    }
+
+    /**
+     * Self-broadcast path: build a proved private transfer (0zk -> 0zk) into a
+     * raw TxData for the wallet to submit itself.
+     */
+    async buildTransfer(token: AssetAmount, to: RailgunAddress): Promise<TxData> {
+        const op = await this.prepareTransferMulti([token], to);
+        const tx = await this.provider.build(op.builder);
+        await this.provider.sync();
+        return tx;
+    }
 };
 
 function tokenGuard(token: AssetAmount) {
