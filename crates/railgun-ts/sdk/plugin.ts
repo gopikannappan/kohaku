@@ -43,7 +43,7 @@ import type { AssetAmount, AssetId, ERC20AssetId, Host, PluginInstance, PrivateO
 import type { Broadcaster } from "@kohaku-eth/plugins/broadcaster";
 import type { TxData } from "@kohaku-eth/provider";
 import { SignerPool } from "./signer-pool";
-import { Bundler, chainConfig, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, SimpleSmartAccount, TransactionBuilder, UtxoSyncer, type Call, type ChainConfig, type LogLevel, type NoteEntry, type RailgunAddress } from "../pkg";
+import { Bundler, chainConfig, erc20, RailgunBuilder, RailgunProvider, RailgunSigner, ShieldBuilder, Signer, SimpleSmartAccount, TransactionBuilder, UtxoSyncer, type Call, type ChainConfig, type LogLevel, type NoteEntry, type RailgunAddress } from "../pkg";
 import { ensureInitialized } from "./lib";
 import { tsLog } from "./logger";
 import { EthereumProviderAdapter } from "./ethereum-provider";
@@ -434,7 +434,7 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         const op = await this.prepareUnshieldMulti([token], to);
         const tx = await this.provider.build(op.builder);
         await this.provider.sync();
-        return tx;
+        return { to: tx.to, data: tx.data, value: BigInt(tx.value) };
     }
 
     /**
@@ -445,7 +445,44 @@ export class RailgunPlugin implements RGInstance, RGBroadcaster {
         const op = await this.prepareTransferMulti([token], to);
         const tx = await this.provider.build(op.builder);
         await this.provider.sync();
-        return tx;
+        return { to: tx.to, data: tx.data, value: BigInt(tx.value) };
+    }
+
+    /**
+     * Broadcaster path: build a proved unshield that ALSO pays a fee note to a
+     * broadcaster's 0zk address, so a Railgun Waku broadcaster (not the user's own
+     * gas wallet) submits it - the only way to get real submitter privacy on a
+     * chain with no 4337 paymaster (Arbitrum).
+     *
+     * One operation, two outputs from the same signer+asset (so they group into a
+     * single Railgun transaction): an unshield of `token.amount` (grossed up for
+     * the protocol unshield fee, so the public recipient nets exactly
+     * `token.amount`) to `toPublic`, and a `transfer` of `broadcasterFee` (WETH) to
+     * `broadcaster0zk`. All amounts, recipients and the fee are bound in the proof,
+     * so the broadcaster cannot skim or redirect - worst case it declines. Returns
+     * the proved raw tx (targets the Railgun proxy `transact()`; useRelayAdapt=false).
+     */
+    async buildBroadcasterUnshield(
+        token: AssetAmount<ERC20AssetId>,
+        toPublic: `0x${string}`,
+        broadcaster0zk: RailgunAddress,
+        broadcasterFee: bigint,
+    ): Promise<TxData> {
+        // Gross up the unshield so the recipient nets token.amount after the
+        // protocol's unshield fee (same convention as prepareUnshieldMulti).
+        const unshieldGross = (token.amount * BPS_DENOMINATOR) / (BPS_DENOMINATOR - BigInt(this.chain.unshieldFeeBps));
+        const signer = this.pool.primary;
+        // The builder wants the pkg AssetId ({type:"Erc20",value}); erc20() builds it.
+        const asset = erc20(token.asset.contract);
+        let builder = this.provider.transact();
+        builder = builder.unshield(signer, toPublic, asset, unshieldGross);
+        // Fee note to the broadcaster (empty memo). Grouped with the unshield
+        // because it shares (signer, asset), so the builder covers both from the
+        // same input notes and adds one change note.
+        builder = builder.transfer(signer, broadcaster0zk, asset, broadcasterFee, "");
+        const tx = await this.provider.build(builder);
+        await this.provider.sync();
+        return { to: tx.to, data: tx.data, value: BigInt(tx.value) };
     }
 };
 
